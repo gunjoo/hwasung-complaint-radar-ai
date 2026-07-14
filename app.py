@@ -31,29 +31,136 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    :root {
+        --radar-blue: #2563eb;
+        --radar-navy: #172554;
+        --radar-sky: #eff6ff;
+        --radar-line: #dbeafe;
+        --radar-text: #0f172a;
+        --radar-muted: #64748b;
+    }
+    html, body, [class*="css"] {
+        font-family: "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif;
+    }
+    .stApp {
+        background:
+            radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 28rem),
+            linear-gradient(180deg, #f8fbff 0%, #ffffff 32%, #f8fafc 100%);
+    }
     .main .block-container {
-        padding-top: 2rem;
+        padding-top: 1.2rem;
         padding-bottom: 3rem;
+        max-width: 1220px;
+    }
+    .hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(191, 219, 254, 0.95);
+        border-radius: 28px;
+        padding: 2rem 2.2rem;
+        margin-bottom: 1.2rem;
+        background:
+            linear-gradient(135deg, rgba(30, 64, 175, 0.96), rgba(37, 99, 235, 0.90)),
+            radial-gradient(circle at right top, rgba(125, 211, 252, 0.42), transparent 18rem);
+        color: #ffffff;
+        box-shadow: 0 22px 50px rgba(37, 99, 235, 0.20);
+    }
+    .hero:after {
+        content: "";
+        position: absolute;
+        right: -5rem;
+        top: -5rem;
+        width: 16rem;
+        height: 16rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.10);
+    }
+    .hero-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        font-size: 0.88rem;
+        font-weight: 700;
+    }
+    .hero-title {
+        margin: 0.7rem 0 0.35rem 0;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        font-weight: 850;
+        letter-spacing: -0.05em;
+        line-height: 1.08;
+    }
+    .hero-subtitle {
+        max-width: 780px;
+        margin: 0;
+        color: #dbeafe;
+        font-size: 1.05rem;
+        line-height: 1.7;
+    }
+    .hero-flow {
+        display: flex;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        margin-top: 1.2rem;
+    }
+    .flow-chip {
+        padding: 0.45rem 0.7rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.13);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #eff6ff;
+        font-size: 0.9rem;
+        font-weight: 650;
     }
     .notice {
-        border: 1px solid #d9e2ec;
-        border-left: 6px solid #2563eb;
-        background: #f8fafc;
-        padding: 0.85rem 1rem;
-        border-radius: 8px;
+        border: 1px solid var(--radar-line);
+        border-left: 6px solid var(--radar-blue);
+        background: rgba(239, 246, 255, 0.86);
+        padding: 0.9rem 1rem;
+        border-radius: 16px;
         color: #243b53;
         margin-bottom: 1rem;
     }
+    .section-head {
+        margin: 1rem 0 0.8rem;
+    }
+    .section-eyebrow {
+        color: var(--radar-blue);
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+    .section-title {
+        color: var(--radar-text);
+        font-size: 1.55rem;
+        font-weight: 850;
+        letter-spacing: -0.035em;
+        margin: 0;
+    }
+    .section-desc {
+        color: var(--radar-muted);
+        margin: 0.25rem 0 0;
+        line-height: 1.65;
+    }
     .soft-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 1rem;
-        background: #ffffff;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 1.08rem;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
         min-height: 120px;
     }
+    .soft-card:hover {
+        border-color: #bfdbfe;
+        box-shadow: 0 16px 40px rgba(37, 99, 235, 0.12);
+    }
     .card-title {
-        color: #334155;
+        color: var(--radar-text);
         font-weight: 700;
         margin-bottom: 0.35rem;
     }
@@ -63,13 +170,88 @@ st.markdown(
     }
     .tag {
         display: inline-block;
-        padding: 0.15rem 0.45rem;
-        border-radius: 6px;
+        padding: 0.22rem 0.52rem;
+        border-radius: 999px;
         background: #eef2ff;
         color: #3730a3;
         margin-right: 0.25rem;
         margin-bottom: 0.25rem;
         font-size: 0.84rem;
+        font-weight: 700;
+    }
+    .metric-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 1rem;
+        min-height: 118px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .metric-label {
+        color: var(--radar-muted);
+        font-size: 0.84rem;
+        font-weight: 750;
+    }
+    .metric-value {
+        color: var(--radar-text);
+        font-size: 1.8rem;
+        line-height: 1.1;
+        font-weight: 850;
+        margin-top: 0.45rem;
+    }
+    .metric-help {
+        color: #94a3b8;
+        font-size: 0.82rem;
+        margin-top: 0.45rem;
+    }
+    .step-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 1rem;
+        background: #ffffff;
+        min-height: 132px;
+    }
+    .step-no {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 1.8rem;
+        height: 1.8rem;
+        border-radius: 999px;
+        background: var(--radar-blue);
+        color: white;
+        font-weight: 850;
+        margin-bottom: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.35rem;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 0.35rem;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 2.7rem;
+        border-radius: 14px;
+        padding: 0 0.9rem;
+        color: #475569;
+        font-weight: 800;
+    }
+    .stTabs [aria-selected="true"] {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 1rem;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+    }
+    div[data-testid="stDataFrame"] {
+        border-radius: 16px;
+        overflow: hidden;
     }
     </style>
     """,
@@ -124,18 +306,87 @@ def make_count_chart(dataframe, column, title, color="#2563eb"):
     return fig
 
 
+def render_hero():
+    st.markdown(
+        f"""
+        <div class="hero">
+            <div class="hero-kicker">📡 공모전 시연용 예방 행정 프로토타입</div>
+            <h1 class="hero-title">화성 민원 레이더 AI</h1>
+            <p class="hero-subtitle">
+                가상 생활불편 민원을 분석해 반복 민원, 담당자 우선 확인 신호, 조치카드와 예방 리포트를
+                한 화면에서 이해할 수 있게 정리합니다.
+            </p>
+            <div class="hero-flow">
+                <span class="flow-chip">① 현황 파악</span>
+                <span class="flow-chip">② 민원 분석</span>
+                <span class="flow-chip">③ 반복·위험 감지</span>
+                <span class="flow-chip">④ 예방 조치 제안</span>
+            </div>
+        </div>
+        <div class='notice'><strong>{DISCLAIMER}</strong><br>{RISK_NOTICE}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_notice():
     st.markdown(f"<div class='notice'><strong>{DISCLAIMER}</strong><br>{RISK_NOTICE}</div>", unsafe_allow_html=True)
 
 
+def render_section_header(eyebrow, title, description):
+    st.markdown(
+        f"""
+        <div class="section-head">
+            <div class="section-eyebrow">{eyebrow}</div>
+            <h2 class="section-title">{title}</h2>
+            <p class="section-desc">{description}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metric_card(label, value, help_text):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-help">{help_text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_step_cards(items):
+    cols = st.columns(len(items))
+    for index, item in enumerate(items):
+        with cols[index]:
+            st.markdown(
+                f"""
+                <div class="step-card">
+                    <div class="step-no">{index + 1}</div>
+                    <div class="card-title">{item["title"]}</div>
+                    <div class="muted">{item["desc"]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
 def render_analysis_result(result):
     cols = st.columns(4)
-    cols[0].metric("민원 분야", result["category"])
-    cols[1].metric("세부 분야", result["sub_category"])
-    cols[2].metric("긴급도", result["urgency"])
-    cols[3].metric("담당 후보", result["owner_candidate"])
+    with cols[0]:
+        render_metric_card("민원 분야", result["category"], "주요 키워드 기반 분류")
+    with cols[1]:
+        render_metric_card("세부 분야", result["sub_category"], "담당자가 볼 상세 유형")
+    with cols[2]:
+        render_metric_card("긴급도", result["urgency"], "담당자 우선 확인 참고")
+    with cols[3]:
+        render_metric_card("담당 후보", result["owner_candidate"], "실제 부서가 아닌 역할명")
 
-    st.subheader("분석 결과")
+    render_section_header("Result", "AI 분석 결과", "키워드 규칙 분석 결과를 시민 안내와 내부 검토 관점으로 나눠 보여줍니다.")
     st.write(result["summary"])
     st.markdown("".join(f"<span class='tag'>{keyword}</span>" for keyword in result["keywords"]), unsafe_allow_html=True)
 
@@ -212,12 +463,20 @@ def build_prevention_report(dataframe, parking, sports):
 
 
 def dashboard_tab(dataframe):
-    st.subheader("대시보드")
+    render_section_header(
+        "Overview",
+        "오늘의 민원 흐름을 먼저 봅니다",
+        "전체 규모, 반복 신호, 우선 확인 건수를 카드로 요약하고 주요 분포를 차트로 확인합니다.",
+    )
     metric_cols = st.columns(4)
-    metric_cols[0].metric("전체 민원 건수", f"{len(dataframe):,}건")
-    metric_cols[1].metric("반복 민원", f"{bool_series(dataframe['is_repeat']).sum():,}건")
-    metric_cols[2].metric("우선 확인", f"{bool_series(dataframe['risk_flag']).sum():,}건")
-    metric_cols[3].metric("분야 수", f"{dataframe['category'].nunique():,}개")
+    with metric_cols[0]:
+        render_metric_card("전체 민원", f"{len(dataframe):,}건", "가상 샘플 데이터 기준")
+    with metric_cols[1]:
+        render_metric_card("반복 민원", f"{bool_series(dataframe['is_repeat']).sum():,}건", "같은 이슈가 반복된 건")
+    with metric_cols[2]:
+        render_metric_card("우선 확인", f"{bool_series(dataframe['risk_flag']).sum():,}건", "담당자 선확인 참고")
+    with metric_cols[3]:
+        render_metric_card("분야 수", f"{dataframe['category'].nunique():,}개", "8개 생활불편 분야")
 
     left, right = st.columns(2)
     with left:
@@ -238,7 +497,11 @@ def dashboard_tab(dataframe):
         fig_keywords.update_layout(height=360, margin=dict(l=10, r=10, t=50, b=10), xaxis_title="건수", yaxis_title="")
         st.plotly_chart(fig_keywords, width="stretch")
 
-    st.subheader("AI 예방 알림 카드")
+    render_section_header(
+        "Signal Cards",
+        "주의 신호만 카드로 빠르게 확인합니다",
+        "반복 건수와 우선 확인 건수가 높은 분야를 예방 알림 카드로 요약합니다.",
+    )
     alerts = build_prevention_alerts(dataframe)
     alert_cols = st.columns(min(3, len(alerts)) or 1)
     for index, alert in enumerate(alerts):
@@ -247,8 +510,18 @@ def dashboard_tab(dataframe):
 
 
 def complaint_analysis_tab():
-    st.subheader("민원 AI 분석")
-    st.caption("첫 버전은 외부 AI API 없이 키워드 기반 규칙으로 분석합니다.")
+    render_section_header(
+        "Analyze",
+        "민원 문장을 넣으면 조치 방향까지 정리합니다",
+        "예시를 선택하거나 직접 입력하면 요약, 분야, 긴급도, 담당 후보, 시민 답변 초안을 한 번에 보여줍니다.",
+    )
+    render_step_cards(
+        [
+            {"title": "예시 선택", "desc": "주차, 안전, 개인정보 예시로 바로 시연할 수 있습니다."},
+            {"title": "규칙 분석", "desc": "외부 AI API 없이 키워드 기반 규칙으로 분류합니다."},
+            {"title": "조치 연결", "desc": "시민 답변과 내부 검토 메모를 분리해 보여줍니다."},
+        ]
+    )
 
     examples = {
         "주차 혼잡 예시": "주말 행사 시간마다 주차장이 만차라 차량 진입이 어렵고 보행자 안전도 걱정됩니다.",
@@ -259,11 +532,13 @@ def complaint_analysis_tab():
     if "complaint_input" not in st.session_state:
         st.session_state.complaint_input = examples["주차 혼잡 예시"]
 
+    st.markdown("#### 바로 써보는 예시 민원")
     button_cols = st.columns(3)
     for index, (label, value) in enumerate(examples.items()):
         if button_cols[index].button(label, width="stretch"):
             st.session_state.complaint_input = value
 
+    st.markdown("#### 민원 문장 입력")
     text = st.text_area(
         "민원 문장 입력",
         key="complaint_input",
@@ -279,7 +554,11 @@ def complaint_analysis_tab():
 
 
 def radar_tab(dataframe):
-    st.subheader("반복 민원 레이더")
+    render_section_header(
+        "Radar",
+        "반복되는 불편 신호를 먼저 찾습니다",
+        "분야별 반복 건수와 우선 확인 건수를 합산해 주의가 필요한 항목을 카드로 보여줍니다.",
+    )
     summary = dataframe.groupby("category").agg(
         total=("id", "count"),
         repeats=("is_repeat", lambda values: bool_series(values).sum()),
@@ -291,7 +570,7 @@ def radar_tab(dataframe):
     cols = st.columns(4)
     for index, row in enumerate(summary.head(8).itertuples(index=False)):
         with cols[index % 4]:
-            level = "주의 필요" if row.risks >= 2 else "반복 관찰"
+            level = "🚨 주의 필요" if row.risks >= 2 else "🔎 반복 관찰"
             st.markdown(
                 f"""
                 <div class="soft-card">
@@ -303,19 +582,27 @@ def radar_tab(dataframe):
                 unsafe_allow_html=True,
             )
 
-    st.dataframe(summary, width="stretch", hide_index=True)
+    st.markdown("#### 분야별 상세 점수")
+    st.dataframe(summary.rename(columns={"attention_score": "관찰 점수"}), width="stretch", hide_index=True)
 
 
 def prevention_report_tab(dataframe, parking, sports):
-    st.subheader("예방 행정 리포트")
-    st.caption("샘플 민원과 공개 공공데이터를 바탕으로 담당자 보고용 요약 초안을 자동 생성합니다.")
+    render_section_header(
+        "Report",
+        "보고서 초안처럼 바로 읽히는 예방 행정 리포트",
+        "반복·위험 신호를 요약하고 담당자가 먼저 볼 목록과 권장 조치를 자동 정리합니다.",
+    )
 
     report = build_prevention_report(dataframe, parking, sports)
     cols = st.columns(4)
-    cols[0].metric("최우선 관찰 분야", report["top_category"])
-    cols[1].metric("반복 민원", f"{report['top_repeats']:,}건")
-    cols[2].metric("우선 확인", f"{report['top_risks']:,}건")
-    cols[3].metric("주의 목록", f"{report['risk_count']:,}건")
+    with cols[0]:
+        render_metric_card("최우선 관찰", report["top_category"], "가장 높은 관찰 점수")
+    with cols[1]:
+        render_metric_card("반복 민원", f"{report['top_repeats']:,}건", "최우선 분야 내 반복")
+    with cols[2]:
+        render_metric_card("우선 확인", f"{report['top_risks']:,}건", "담당자 선확인 참고")
+    with cols[3]:
+        render_metric_card("주의 목록", f"{report['risk_count']:,}건", "주의 이상 또는 플래그")
 
     st.markdown("#### 이번 주 예방 행정 요약")
     st.info(
@@ -357,18 +644,25 @@ def prevention_report_tab(dataframe, parking, sports):
 
 
 def public_data_tab(dataframe, parking, sports):
-    st.subheader("공공데이터 연계")
-    st.caption("공개 공공데이터를 민원 예방 분석의 배경 정보로 활용합니다. 실제 민원 원문이나 개인정보는 사용하지 않습니다.")
+    render_section_header(
+        "Public Data",
+        "공공데이터는 민원 해석의 근거 카드로 씁니다",
+        "공영주차장과 체육시설 공개 데이터를 반복 민원 예방 조치의 배경 정보로 연결합니다.",
+    )
 
     parking_complaints = dataframe[dataframe["category"] == "주차"]
     facility_complaints = dataframe[dataframe["category"].isin(["안전", "시설이용", "프로그램", "대관"])]
     sports_total = int(sports["시설수"].fillna(0).sum()) if "시설수" in sports.columns else len(sports)
     sports_type_count = sports["시설명"].nunique()
     metric_cols = st.columns(4)
-    metric_cols[0].metric("공영주차장 구간", f"{len(parking):,}개")
-    metric_cols[1].metric("총 주차면수", f"{int(parking['면수'].fillna(0).sum()):,}면")
-    metric_cols[2].metric("체육시설 항목", f"{sports_total:,}개")
-    metric_cols[3].metric("시설 관련 가상 민원", f"{len(facility_complaints):,}건")
+    with metric_cols[0]:
+        render_metric_card("공영주차장", f"{len(parking):,}개", "공개 CSV 구간 수")
+    with metric_cols[1]:
+        render_metric_card("총 주차면수", f"{int(parking['면수'].fillna(0).sum()):,}면", "주차 민원 연결 근거")
+    with metric_cols[2]:
+        render_metric_card("체육시설", f"{sports_total:,}개", "유형별 요약 항목")
+    with metric_cols[3]:
+        render_metric_card("시설 민원", f"{len(facility_complaints):,}건", "가상 샘플 기준")
 
     st.markdown(
         """
@@ -505,7 +799,11 @@ def public_data_tab(dataframe, parking, sports):
 
 
 def action_cards_tab():
-    st.subheader("담당자 조치카드")
+    render_section_header(
+        "Action Card",
+        "담당자가 바로 확인할 조치카드",
+        "민원 유형을 선택하면 시민 답변, 내부 검토 메모, 확인 체크리스트를 분리해서 보여줍니다.",
+    )
     category = st.selectbox("민원 유형 선택", list(CATEGORY_RULES.keys()))
     card = build_action_card(category)
 
@@ -525,7 +823,11 @@ def action_cards_tab():
 
 
 def intro_tab():
-    st.subheader("솔루션 소개")
+    render_section_header(
+        "About",
+        "서비스의 위치와 안전 원칙",
+        "국민신문고 대체 서비스가 아니라, 접수 이후 반복 민원 분석과 예방 행정을 돕는 시연 도구입니다.",
+    )
     st.markdown(
         """
         **화성 민원 레이더 AI**는 국민신문고를 대체하는 접수 시스템이 아닙니다.
@@ -547,10 +849,9 @@ def main():
     dataframe = load_data()
     parking = load_public_parking_data()
     sports = load_public_sports_data()
-    st.title("화성 민원 레이더 AI")
-    render_notice()
+    render_hero()
 
-    tabs = st.tabs(["대시보드", "민원 AI 분석", "반복 민원 레이더", "예방 행정 리포트", "공공데이터 연계", "담당자 조치카드", "솔루션 소개"])
+    tabs = st.tabs(["현황", "AI 분석", "반복 레이더", "예방 리포트", "공공데이터", "조치카드", "소개"])
     with tabs[0]:
         dashboard_tab(dataframe)
     with tabs[1]:
