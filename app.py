@@ -232,15 +232,18 @@ st.markdown(
         box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
     }
     .stTabs [data-baseweb="tab"] {
-        height: 2.7rem;
+        height: 3.15rem;
         border-radius: 14px;
-        padding: 0 0.9rem;
+        padding: 0 1.15rem;
         color: #475569;
-        font-weight: 800;
+        font-size: 1.05rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
     }
     .stTabs [aria-selected="true"] {
         background: #eff6ff;
         color: #1d4ed8;
+        font-weight: 950;
     }
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.92);
