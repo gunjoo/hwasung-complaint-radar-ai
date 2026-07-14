@@ -166,6 +166,51 @@ def render_alert_card(alert):
     )
 
 
+def build_category_summary(dataframe):
+    summary = dataframe.groupby("category").agg(
+        total=("id", "count"),
+        repeats=("is_repeat", lambda values: bool_series(values).sum()),
+        risks=("risk_flag", lambda values: bool_series(values).sum()),
+    ).reset_index()
+    summary["attention_score"] = summary["repeats"] * 2 + summary["risks"] * 3 + summary["total"]
+    return summary.sort_values("attention_score", ascending=False)
+
+
+def build_prevention_report(dataframe, parking, sports):
+    summary = build_category_summary(dataframe)
+    top_row = summary.iloc[0]
+    risk_dataframe = dataframe[dataframe["urgency"].isin(["주의", "즉시 확인 필요"]) | bool_series(dataframe["risk_flag"])]
+    keyword_counts = get_repeated_keyword_counts(dataframe, limit=5)
+    parking_total = int(parking["면수"].fillna(0).sum())
+    sports_total = int(sports["시설수"].fillna(0).sum()) if "시설수" in sports.columns else len(sports)
+
+    recommendations = []
+    if (summary["category"] == "주차").any():
+        parking_row = summary[summary["category"] == "주차"].iloc[0]
+        if parking_row["repeats"] >= 2:
+            recommendations.append(f"주차 반복 민원 {int(parking_row['repeats'])}건: 공영주차장 {len(parking)}개 구간·{parking_total:,}면 안내 강화 검토")
+    if summary["category"].isin(["안전", "시설이용", "프로그램", "대관"]).any():
+        facility_score = summary[summary["category"].isin(["안전", "시설이용", "프로그램", "대관"])]["attention_score"].sum()
+        if facility_score >= 10:
+            recommendations.append(f"시설 관련 민원 주의: 체육시설 {sports_total:,}개 항목 기준 점검·대관 안내 우선순위 검토")
+    if len(risk_dataframe) > 0:
+        recommendations.append(f"주의 이상 또는 우선 확인 민원 {len(risk_dataframe)}건: 담당자 선확인 목록으로 분리 관리")
+    if not recommendations:
+        recommendations.append("현재 샘플 기준 큰 위험 신호는 낮으나 반복 키워드 모니터링은 유지")
+
+    return {
+        "top_category": top_row["category"],
+        "top_total": int(top_row["total"]),
+        "top_repeats": int(top_row["repeats"]),
+        "top_risks": int(top_row["risks"]),
+        "risk_count": len(risk_dataframe),
+        "keywords": keyword_counts,
+        "summary": summary,
+        "risk_dataframe": risk_dataframe,
+        "recommendations": recommendations,
+    }
+
+
 def dashboard_tab(dataframe):
     st.subheader("대시보드")
     metric_cols = st.columns(4)
@@ -261,6 +306,56 @@ def radar_tab(dataframe):
     st.dataframe(summary, width="stretch", hide_index=True)
 
 
+def prevention_report_tab(dataframe, parking, sports):
+    st.subheader("예방 행정 리포트")
+    st.caption("샘플 민원과 공개 공공데이터를 바탕으로 담당자 보고용 요약 초안을 자동 생성합니다.")
+
+    report = build_prevention_report(dataframe, parking, sports)
+    cols = st.columns(4)
+    cols[0].metric("최우선 관찰 분야", report["top_category"])
+    cols[1].metric("반복 민원", f"{report['top_repeats']:,}건")
+    cols[2].metric("우선 확인", f"{report['top_risks']:,}건")
+    cols[3].metric("주의 목록", f"{report['risk_count']:,}건")
+
+    st.markdown("#### 이번 주 예방 행정 요약")
+    st.info(
+        f"샘플 데이터 기준 `{report['top_category']}` 분야가 전체 {report['top_total']}건, "
+        f"반복 {report['top_repeats']}건, 우선 확인 {report['top_risks']}건으로 가장 높은 관찰 점수를 보였습니다. "
+        "이는 실제 민원 통계가 아닌 공모전 시연용 가상 데이터 기반 참고 요약입니다."
+    )
+
+    left, right = st.columns([1, 1])
+    with left:
+        st.markdown("#### 반복 키워드")
+        keyword_text = "".join(f"<span class='tag'>{keyword} {count}건</span>" for keyword, count in report["keywords"])
+        st.markdown(keyword_text, unsafe_allow_html=True)
+
+        st.markdown("#### 권장 조치")
+        for recommendation in report["recommendations"]:
+            st.success(recommendation)
+
+    with right:
+        st.markdown("#### 담당자 선확인 목록")
+        preview_columns = ["id", "date", "facility", "category", "urgency", "complaint_text", "expected_role"]
+        if report["risk_dataframe"].empty:
+            st.write("현재 조건에 해당하는 주의 민원이 없습니다.")
+        else:
+            st.dataframe(report["risk_dataframe"][preview_columns], width="stretch", hide_index=True)
+
+    st.markdown("#### 분야별 관찰 점수")
+    score_chart = px.bar(
+        report["summary"],
+        x="attention_score",
+        y="category",
+        orientation="h",
+        text="attention_score",
+        title="반복·위험 신호 기반 관찰 점수",
+    )
+    score_chart.update_traces(marker_color="#dc2626", textposition="outside")
+    score_chart.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10), xaxis_title="관찰 점수", yaxis_title="")
+    st.plotly_chart(score_chart, width="stretch")
+
+
 def public_data_tab(dataframe, parking, sports):
     st.subheader("공공데이터 연계")
     st.caption("공개 공공데이터를 민원 예방 분석의 배경 정보로 활용합니다. 실제 민원 원문이나 개인정보는 사용하지 않습니다.")
@@ -345,21 +440,68 @@ def public_data_tab(dataframe, parking, sports):
         st.dataframe(sports[sports_preview], width="stretch", hide_index=True)
 
     with public_tabs[2]:
-        left, right = st.columns(2)
-        with left:
-            st.markdown("#### 주차 민원 연결")
-            st.info(
-                f"가상 주차 민원 {len(parking_complaints)}건과 공영주차장 {len(parking)}개 구간, "
-                f"총 {int(parking['면수'].fillna(0).sum()):,}면 정보를 함께 확인합니다. "
-                "반복 혼잡 민원 발생 시 안내 강화, 분산 주차 유도, 주변 주차장 안내 개선을 검토할 수 있습니다."
+        parking_repeats = bool_series(parking_complaints["is_repeat"]).sum()
+        facility_repeats = bool_series(facility_complaints["is_repeat"]).sum()
+        parking_total_spaces = int(parking["면수"].fillna(0).sum())
+        parking_top_area = parking.groupby("권역")["면수"].sum().sort_values(ascending=False).index[0]
+        sports_top_type = sports.sort_values("시설수", ascending=False).iloc[0]["시설명"] if "시설수" in sports.columns else sports["시설명"].value_counts().index[0]
+
+        card_cols = st.columns(3)
+        with card_cols[0]:
+            st.markdown(
+                f"""
+                <div class="soft-card">
+                    <div class="card-title">주차 민원 × 공영주차장</div>
+                    <div class="muted">가상 주차 민원 {len(parking_complaints)}건 · 반복 {parking_repeats}건</div>
+                    <p>공영주차장 {len(parking)}개 구간, 총 {parking_total_spaces:,}면과 연결해 혼잡 안내·분산 유도 필요성을 검토합니다.</p>
+                    <p><strong>우선 확인 권역:</strong> {parking_top_area}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-        with right:
-            st.markdown("#### 시설·대관·안전 민원 연결")
-            st.success(
-                f"안전·시설이용·프로그램·대관 관련 가상 민원 {len(facility_complaints)}건과 "
-                f"체육시설 공개 데이터 {sports_total}개 항목, {sports_type_count}개 유형을 함께 봅니다. "
-                "시설 유형별 반복 민원, 대관 안내 개선, 안전 점검 우선순위 도출에 활용할 수 있습니다."
+        with card_cols[1]:
+            st.markdown(
+                f"""
+                <div class="soft-card">
+                    <div class="card-title">시설 민원 × 체육시설</div>
+                    <div class="muted">시설 관련 가상 민원 {len(facility_complaints)}건 · 반복 {facility_repeats}건</div>
+                    <p>체육시설 {sports_total:,}개 항목, {sports_type_count}개 유형과 연결해 안전 점검·대관 안내 우선순위를 검토합니다.</p>
+                    <p><strong>최다 시설 유형:</strong> {sports_top_type}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
+        with card_cols[2]:
+            st.markdown(
+                f"""
+                <div class="soft-card">
+                    <div class="card-title">반복 민원 × 예방 조치</div>
+                    <div class="muted">공공데이터는 배경 정보로만 활용</div>
+                    <p>민원 원문 대신 가상 샘플과 공개 인프라 현황을 결합해 개인정보 부담을 낮추고 예방 행정 설명력을 높입니다.</p>
+                    <p><strong>활용 방향:</strong> 안내 강화 · 점검 우선순위 · FAQ 개선</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("#### 연결 해석 표")
+        linked_rows = pd.DataFrame(
+            [
+                {
+                    "민원 신호": "주차 혼잡·불법주차",
+                    "연결 공공데이터": "공영주차장 위치·면수",
+                    "확인 포인트": f"{len(parking)}개 구간 / {parking_total_spaces:,}면 / {parking_top_area} 권역",
+                    "예방 조치 예시": "주차 안내 강화, 주변 주차장 안내, 혼잡 시간대 분산 유도",
+                },
+                {
+                    "민원 신호": "시설이용·안전·대관",
+                    "연결 공공데이터": "체육시설 유형별 현황",
+                    "확인 포인트": f"{sports_total:,}개 항목 / {sports_type_count}개 유형 / 최다 유형 {sports_top_type}",
+                    "예방 조치 예시": "시설 점검 우선순위, 대관 안내 개선, 안전 안내문 보강",
+                },
+            ]
+        )
+        st.dataframe(linked_rows, width="stretch", hide_index=True)
 
 
 def action_cards_tab():
@@ -408,7 +550,7 @@ def main():
     st.title("화성 민원 레이더 AI")
     render_notice()
 
-    tabs = st.tabs(["대시보드", "민원 AI 분석", "반복 민원 레이더", "공공데이터 연계", "담당자 조치카드", "솔루션 소개"])
+    tabs = st.tabs(["대시보드", "민원 AI 분석", "반복 민원 레이더", "예방 행정 리포트", "공공데이터 연계", "담당자 조치카드", "솔루션 소개"])
     with tabs[0]:
         dashboard_tab(dataframe)
     with tabs[1]:
@@ -416,10 +558,12 @@ def main():
     with tabs[2]:
         radar_tab(dataframe)
     with tabs[3]:
-        public_data_tab(dataframe, parking, sports)
+        prevention_report_tab(dataframe, parking, sports)
     with tabs[4]:
-        action_cards_tab()
+        public_data_tab(dataframe, parking, sports)
     with tabs[5]:
+        action_cards_tab()
+    with tabs[6]:
         intro_tab()
 
 
