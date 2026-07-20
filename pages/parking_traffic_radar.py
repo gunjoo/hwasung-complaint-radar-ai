@@ -10,9 +10,6 @@ COMPLAINTS_PATH = BASE_DIR / "data" / "sample_complaints.csv"
 PARKING_PATH = BASE_DIR / "data" / "public_parking_hwasung.csv"
 
 
-st.set_page_config(page_title="주차·교통 민원 밀집도 레이더", page_icon="🚗", layout="wide")
-
-
 st.markdown(
     """
     <style>

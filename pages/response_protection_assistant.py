@@ -12,9 +12,6 @@ COUNSELING_EXAMPLES = {
 }
 
 
-st.set_page_config(page_title="AI 민원응대 보호 어시스턴트", page_icon="🛡️", layout="wide")
-
-
 st.markdown(
     """
     <style>

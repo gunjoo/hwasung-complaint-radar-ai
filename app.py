@@ -19,6 +19,32 @@ PUBLIC_PARKING_PATH = BASE_DIR / "data" / "public_parking_hwasung.csv"
 PUBLIC_SPORTS_PATH = BASE_DIR / "data" / "public_sports_facilities_hwasung.csv"
 DISCLAIMER = "본 데이터는 공모전 시연용 가상 데이터이며, 실제 국민신문고·민원 데이터와 무관함"
 RISK_NOTICE = "위험도 판단은 법적 판단이나 최종 판단이 아니라 담당자 우선 확인을 위한 참고 지표입니다."
+RIGHTS_NOTICE = (
+    "본 솔루션은 타인의 저작물, 초상, 음성, 실제 민원 원문, 개인정보를 사용하지 않았으며, "
+    "기능 시연을 위한 가상 민원 데이터와 개인정보가 포함되지 않은 공개 공공데이터만 활용하였습니다."
+)
+PUBLIC_DATA_USAGE_NOTICE = (
+    "공공데이터는 출처를 표시하고, 원자료의 의미를 왜곡하지 않는 범위에서 "
+    "통계·집계·시각화 형태로 정제하여 사용하였습니다."
+)
+PROTOTYPE_OWNERSHIP_NOTICE = (
+    "앱 화면, 분석 로직, 시연 데이터 구조는 공모전 제출자가 직접 기획·구성한 프로토타입이며, "
+    "외부 유료 저작물이나 무단 복제 자료는 포함하지 않았습니다."
+)
+GROWTH_MESSAGE = (
+    "본 솔루션은 급격한 도시 성장에 따른 교통·주차·공공시설 이용 민원을 데이터 기반으로 분석하고, "
+    "장시간·반복 민원 대응 과정에서 담당자의 감정노동을 줄이는 표준화된 응대를 지원합니다."
+)
+COUNSELING_NOTICE = "본 기능은 실제 통화 녹취를 사용하지 않는 시연용 텍스트 분석 기능입니다."
+
+
+COUNSELING_EXAMPLES = {
+    "장시간 반복 문의": "같은 주차 민원으로 오늘 세 번째 연락드립니다. 40분 넘게 설명했는데도 해결이 안 됐다고 느껴 다시 문의합니다.",
+    "격앙된 표현 포함": "계속 기다리라고만 하면 너무 화가 납니다. 담당자가 일부러 피하는 것 아닌지 따지고 싶습니다.",
+    "절차 안내 요청": "대관 환불 기준을 여러 번 문의했는데 안내가 조금씩 달라서 다시 확인하고 싶습니다.",
+    "안전 우려 반복": "아이들이 다칠까 봐 지난주에도 말했는데 아직 조치가 없어 다시 연락드립니다.",
+    "일반 문의": "프로그램 신청 일정과 대기자 안내가 언제 올라오는지 궁금합니다.",
+}
 
 
 st.set_page_config(
@@ -292,6 +318,98 @@ def load_public_sports_data():
 
 def bool_series(series):
     return series.astype(str).str.lower().isin(["true", "1", "yes", "y"])
+
+
+def infer_service_area(text):
+    value = str(text or "")
+    if "동탄" in value:
+        return "동탄권역"
+    if any(keyword in value for keyword in ["서부", "남양", "송산", "서신", "마도", "매송", "비봉", "새솔"]):
+        return "서부권역"
+    if any(keyword in value for keyword in ["향남", "봉담", "팔탄", "양감", "정남", "우정", "장안"]):
+        return "남부권역"
+    if any(keyword in value for keyword in ["이음터", "복합", "중부", "병점", "반월", "기배", "화산", "진안"]):
+        return "중부권역"
+    if any(keyword in value for keyword in ["도서관", "공공"]):
+        return "공통권역"
+    return "기타권역"
+
+
+def build_parking_density_data(dataframe, parking):
+    traffic_keywords = ["주차", "불법주차", "불법주정차", "주정차", "교통", "혼잡", "차량", "만차", "진입", "출차"]
+    complaint_text = dataframe["complaint_text"].fillna("").astype(str)
+    keyword_text = dataframe["keywords"].fillna("").astype(str)
+    traffic_mask = (dataframe["category"] == "주차") | complaint_text.str.contains("|".join(traffic_keywords), case=False, regex=True) | keyword_text.str.contains("|".join(traffic_keywords), case=False, regex=True)
+
+    traffic_complaints = dataframe[traffic_mask].copy()
+    traffic_complaints["권역"] = traffic_complaints["facility"].apply(infer_service_area)
+
+    complaint_summary = traffic_complaints.groupby("권역").agg(
+        주차교통민원=("id", "count"),
+        반복민원=("is_repeat", lambda values: bool_series(values).sum()),
+        우선확인=("risk_flag", lambda values: bool_series(values).sum()),
+    ).reset_index()
+
+    parking_by_area = parking.copy()
+    parking_by_area["권역"] = parking_by_area["주소"].apply(infer_service_area)
+    parking_summary = parking_by_area.groupby("권역").agg(
+        공영주차장수=("구간이름", "count"),
+        총주차면수=("면수", "sum"),
+    ).reset_index()
+
+    all_areas = pd.DataFrame({"권역": sorted(set(complaint_summary["권역"]).union(set(parking_summary["권역"])))})
+    density = all_areas.merge(complaint_summary, on="권역", how="left").merge(parking_summary, on="권역", how="left")
+    for column in ["주차교통민원", "반복민원", "우선확인", "공영주차장수", "총주차면수"]:
+        density[column] = density[column].fillna(0).astype(int)
+    density["검토권고"] = density["반복민원"].apply(lambda count: "현장 확인 및 사전 안내 강화 권고" if count >= 2 else "모니터링")
+    density = density.sort_values(["반복민원", "주차교통민원", "총주차면수"], ascending=False)
+    return traffic_complaints, density
+
+
+def analyze_counseling_text(text):
+    normalized = str(text or "").strip()
+    lower_text = normalized.lower()
+    repeat_keywords = ["다시", "반복", "세 번째", "여러 번", "지난주", "계속", "또", "재문의"]
+    long_keywords = ["40분", "30분", "장시간", "오래", "계속 설명", "길게"]
+    high_risk_keywords = ["화가", "따지", "고소", "신고", "욕", "폭언", "위협", "찾아가", "민원 넣"]
+
+    repeat_matches = [keyword for keyword in repeat_keywords if keyword in normalized]
+    long_matches = [keyword for keyword in long_keywords if keyword in normalized]
+    high_risk_matches = [keyword for keyword in high_risk_keywords if keyword in normalized]
+
+    is_repeat = bool(repeat_matches)
+    is_long = bool(long_matches) or len(normalized) >= 120
+    is_high_risk = bool(high_risk_matches)
+
+    if is_high_risk:
+        protection_level = "주의"
+        guide = "감정적 표현에 직접 맞대응하지 말고, 사실 확인 범위와 공식 처리 절차를 짧게 안내한 뒤 필요 시 관리자 동석 또는 상담 이관을 검토합니다."
+    elif is_repeat or is_long:
+        protection_level = "확인 필요"
+        guide = "반복 설명으로 인한 담당자 피로를 줄이기 위해 이전 안내 이력, 처리 기준, 다음 확인 시점을 표준 문장으로 정리합니다."
+    else:
+        protection_level = "일반"
+        guide = "일반 문의로 분류되며, 핵심 요청을 확인한 뒤 동일한 기준의 표준 안내문으로 응대합니다."
+
+    response = (
+        "문의 주신 내용을 확인했습니다. 동일 기준에 따라 관련 사항을 검토하고, 확인 가능한 범위와 절차를 안내드리겠습니다. "
+        "추가 확인이 필요한 경우 담당자가 정리된 기준에 따라 안내드리겠습니다."
+    )
+    internal_note = (
+        f"장시간 여부: {'해당' if is_long else '미해당'} / 반복 민원 여부: {'해당' if is_repeat else '미해당'} / "
+        f"고위험 표현 참고: {'감지' if is_high_risk else '미감지'}"
+    )
+
+    return {
+        "is_long": is_long,
+        "is_repeat": is_repeat,
+        "is_high_risk": is_high_risk,
+        "protection_level": protection_level,
+        "matched_keywords": list(dict.fromkeys(repeat_matches + long_matches + high_risk_matches)) or ["특이 키워드 없음"],
+        "guide": guide,
+        "standard_response": response,
+        "internal_note": internal_note,
+    }
 
 
 def make_count_chart(dataframe, column, title, color="#2563eb"):
@@ -646,6 +764,79 @@ def prevention_report_tab(dataframe, parking, sports):
     st.plotly_chart(score_chart, width="stretch")
 
 
+def parking_density_tab(dataframe, parking):
+    render_section_header(
+        "Parking Radar",
+        "주차·교통 민원 밀집도 레이더",
+        "가상 주차·교통 민원과 화성시 공영주차장 공개 데이터를 권역별로 연결해 반복 민원 관찰 지점을 찾습니다.",
+    )
+    st.caption("단속차량 배치나 행정 처분을 단정하지 않고, 담당부서 검토와 사전 안내 강화를 위한 참고 정보로만 표시합니다.")
+
+    traffic_complaints, density = build_parking_density_data(dataframe, parking)
+    recommended = density[density["검토권고"] == "현장 확인 및 사전 안내 강화 권고"]
+
+    cols = st.columns(4)
+    with cols[0]:
+        render_metric_card("주차·교통 민원", f"{len(traffic_complaints):,}건", "키워드 기반 가상 민원")
+    with cols[1]:
+        render_metric_card("반복 민원", f"{int(density['반복민원'].sum()):,}건", "권역별 반복 신호")
+    with cols[2]:
+        render_metric_card("공영주차장", f"{int(density['공영주차장수'].sum()):,}개", "공개 CSV 기준")
+    with cols[3]:
+        render_metric_card("총 주차면수", f"{int(density['총주차면수'].sum()):,}면", "공영주차장 면수 합계")
+
+    if not recommended.empty:
+        st.markdown("#### 검토 권고 카드")
+        card_cols = st.columns(min(3, len(recommended)))
+        for index, row in enumerate(recommended.itertuples(index=False)):
+            with card_cols[index % len(card_cols)]:
+                st.markdown(
+                    f"""
+                    <div class="soft-card">
+                        <div class="card-title">🚗 {row.권역} 주차·교통 반복 신호</div>
+                        <div class="muted">가상 민원 {row.주차교통민원}건 · 반복 {row.반복민원}건</div>
+                        <p>공영주차장 {row.공영주차장수}개, 총 {row.총주차면수:,}면 현황과 함께 담당부서 검토가 필요합니다.</p>
+                        <p><strong>권고:</strong> 현장 확인 및 사전 안내 강화 권고</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+    else:
+        st.info("현재 샘플 기준 반복 주차·교통 민원이 뚜렷한 권역은 없습니다.")
+
+    left, right = st.columns([1.05, 0.95])
+    with left:
+        fig_density = px.bar(
+            density,
+            x="권역",
+            y=["주차교통민원", "반복민원"],
+            barmode="group",
+            title="권역별 주차·교통 민원 밀집도",
+        )
+        fig_density.update_layout(height=390, margin=dict(l=10, r=10, t=50, b=10), xaxis_title="", yaxis_title="건수")
+        st.plotly_chart(fig_density, width="stretch")
+
+    with right:
+        fig_parking = px.bar(
+            density.sort_values("총주차면수", ascending=False),
+            x="총주차면수",
+            y="권역",
+            orientation="h",
+            text="총주차면수",
+            title="권역별 공영주차장 총 주차면수",
+        )
+        fig_parking.update_traces(marker_color="#0f766e", textposition="outside")
+        fig_parking.update_layout(height=390, margin=dict(l=10, r=10, t=50, b=10), xaxis_title="면수", yaxis_title="")
+        st.plotly_chart(fig_parking, width="stretch")
+
+    st.markdown("#### 권역별 연결 현황")
+    st.dataframe(density, width="stretch", hide_index=True)
+
+    st.markdown("#### 주차·교통 가상 민원 목록")
+    preview_columns = ["id", "date", "facility", "권역", "urgency", "complaint_text", "keywords", "expected_role"]
+    st.dataframe(traffic_complaints[preview_columns], width="stretch", hide_index=True)
+
+
 def public_data_tab(dataframe, parking, sports):
     render_section_header(
         "Public Data",
@@ -672,7 +863,8 @@ def public_data_tab(dataframe, parking, sports):
         <div class="notice">
             <strong>연계 데이터 출처</strong><br>
             경기도 화성시_공영주차장 정보_20251117, 화성도시공사_화성시 체육시설 현황_20251231 CSV 공개 데이터 기반입니다.
-            주차장·체육시설 인프라 현황을 반복 민원 해석의 참고 정보로만 사용합니다.
+            주차장·체육시설 인프라 현황을 반복 민원 해석의 참고 정보로만 사용합니다.<br>
+            공공데이터는 원자료의 의미를 왜곡하지 않는 범위에서 통계·집계·시각화 형태로 정제했습니다.
         </div>
         """,
         unsafe_allow_html=True,
@@ -825,6 +1017,60 @@ def action_cards_tab():
         st.success(card["prevention_suggestion"])
 
 
+def response_protection_tab():
+    render_section_header(
+        "Staff Care",
+        "AI 민원응대 보호 어시스턴트",
+        "가상 상담기록 텍스트를 분석해 장시간·반복 민원 신호와 담당자 보호 가이드를 시연합니다.",
+    )
+    st.markdown(f"<div class='notice'><strong>{COUNSELING_NOTICE}</strong><br>실시간 STT, 통화 음성, 녹취, 개인정보는 사용하지 않습니다.</div>", unsafe_allow_html=True)
+
+    if "counseling_input" not in st.session_state:
+        st.session_state.counseling_input = COUNSELING_EXAMPLES["장시간 반복 문의"]
+
+    st.markdown("#### 가상 상담기록 예시")
+    example_cols = st.columns(5)
+    for index, (label, value) in enumerate(COUNSELING_EXAMPLES.items()):
+        if example_cols[index].button(label, width="stretch"):
+            st.session_state.counseling_input = value
+
+    st.markdown("#### 상담기록 텍스트 입력")
+    text = st.text_area(
+        "상담기록 텍스트",
+        key="counseling_input",
+        height=150,
+        placeholder="가상 상담기록을 입력하세요. 실제 통화 녹취나 개인정보는 입력하지 않습니다.",
+    )
+
+    if st.button("응대 보호 분석하기", type="primary", width="stretch"):
+        result = analyze_counseling_text(text)
+        cols = st.columns(4)
+        with cols[0]:
+            render_metric_card("장시간 신호", "해당" if result["is_long"] else "미해당", "텍스트 길이·시간 표현 기준")
+        with cols[1]:
+            render_metric_card("반복 민원", "해당" if result["is_repeat"] else "미해당", "반복 표현 감지")
+        with cols[2]:
+            render_metric_card("고위험 표현", "감지" if result["is_high_risk"] else "미감지", "담당자 보호 참고")
+        with cols[3]:
+            render_metric_card("보호 수준", result["protection_level"], "응대 지원 기준")
+
+        st.markdown("#### 감지 키워드")
+        st.markdown("".join(f"<span class='tag'>{keyword}</span>" for keyword in result["matched_keywords"]), unsafe_allow_html=True)
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### 담당자 보호 가이드")
+            st.warning(result["guide"])
+            st.markdown("#### 내부 참고 메모")
+            st.info(result["internal_note"])
+        with right:
+            st.markdown("#### 표준 응대문안")
+            st.success(result["standard_response"])
+            st.caption("본 문안은 시연용 초안이며, 실제 응대 시 기관 기준과 담당자 판단에 따라 조정해야 합니다.")
+    else:
+        st.info("가상 상담기록 예시를 선택하거나 텍스트를 입력한 뒤 분석하기를 눌러보세요.")
+
+
 def intro_tab():
     render_section_header(
         "About",
@@ -840,12 +1086,31 @@ def intro_tab():
         공모전 시연용 도구입니다.
         """
     )
+    st.markdown("#### 도시 성장 대응 메시지")
+    st.info(GROWTH_MESSAGE)
+    st.write("- 모든 데이터는 가상 민원 데이터와 개인정보 없는 공개 공공데이터만 사용합니다.")
+    st.write("- 장시간·반복 민원 대응 과정에서 담당자의 감정노동을 줄이고 표준화된 응대를 지원합니다.")
     st.markdown("#### 핵심 원칙")
     st.write("- 실제 민원 데이터, 개인정보, 내부 시스템 정보는 사용하지 않습니다.")
     st.write("- 모든 분석은 외부 AI API가 아닌 키워드 기반 규칙으로 동작합니다.")
     st.write("- 공개 공공데이터는 시설·인프라 현황을 파악하기 위한 참고 정보로만 활용합니다.")
     st.write("- 위험도 표시는 담당자 우선 확인을 돕는 참고 지표입니다.")
     st.write("- 향후 AI API를 붙일 경우에도 비식별화와 보안 검토가 선행되어야 합니다.")
+    st.markdown("#### 저작권·출처 및 데이터 이용 고지")
+    st.markdown(
+        f"""
+        <div class="notice">
+            <strong>권리 및 개인정보 보호 고지</strong><br>
+            {RIGHTS_NOTICE}<br><br>
+            <strong>공공데이터 활용 기준</strong><br>
+            {PUBLIC_DATA_USAGE_NOTICE}<br><br>
+            <strong>프로토타입 제작 범위</strong><br>
+            {PROTOTYPE_OWNERSHIP_NOTICE}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("공공데이터 출처: 경기도 화성시_공영주차장 정보_20251117, 화성도시공사_화성시 체육시설 현황_20251231")
 
 
 def main():
@@ -854,7 +1119,7 @@ def main():
     sports = load_public_sports_data()
     render_hero()
 
-    tabs = st.tabs(["현황", "AI 분석", "반복 레이더", "예방 리포트", "공공데이터", "조치카드", "소개"])
+    tabs = st.tabs(["현황", "AI 분석", "반복 레이더", "주차·교통", "예방 리포트", "공공데이터", "조치카드", "응대 보호", "소개"])
     with tabs[0]:
         dashboard_tab(dataframe)
     with tabs[1]:
@@ -862,14 +1127,28 @@ def main():
     with tabs[2]:
         radar_tab(dataframe)
     with tabs[3]:
-        prevention_report_tab(dataframe, parking, sports)
+        parking_density_tab(dataframe, parking)
     with tabs[4]:
-        public_data_tab(dataframe, parking, sports)
+        prevention_report_tab(dataframe, parking, sports)
     with tabs[5]:
-        action_cards_tab()
+        public_data_tab(dataframe, parking, sports)
     with tabs[6]:
+        action_cards_tab()
+    with tabs[7]:
+        response_protection_tab()
+    with tabs[8]:
         intro_tab()
 
 
+def run_navigation():
+    pages = [
+        st.Page(main, title="화성 민원 레이더 AI", icon="📡", default=True),
+        st.Page("pages/parking_traffic_radar.py", title="주차·교통 레이더", icon="🚗"),
+        st.Page("pages/response_protection_assistant.py", title="민원응대 보호 어시스턴트", icon="🛡️"),
+    ]
+    selected_page = st.navigation(pages)
+    selected_page.run()
+
+
 if __name__ == "__main__":
-    main()
+    run_navigation()
